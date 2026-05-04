@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCA-Accelerated CNNs — Manohar Karanam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2;
+    --surface: #f3ede3;
+    --surface2: #ede4d6;
+    --border: #ddd4c0;
+    --gold: #b5813a;
+    --gold-light: #c9973f;
+    --gold-dim: rgba(181,129,58,0.10);
+    --text: #2c2416;
+    --text-muted: #6b5c42;
+    --text-dim: #a0896a;
+    --white: #2c2416;
+    --code-bg: #f7f3ec;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.18;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem 4rem;
+    background: rgba(250,247,242,0.90);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-logo {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--gold);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+
+  .nav-back {
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .nav-back:hover { color: var(--gold); }
+
+  /* HERO */
+  .article-hero {
+    padding: 10rem 4rem 5rem;
+    max-width: 900px;
+    margin: 0 auto;
+    animation: fadeUp 1s ease both;
+  }
+
+  .article-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .article-tag::before {
+    content: '';
+    display: block;
+    width: 2rem;
+    height: 1px;
+    background: var(--gold);
+  }
+
+  .article-hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.2rem, 4vw, 3.2rem);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--white);
+    margin-bottom: 1.5rem;
+  }
+
+  .article-subtitle {
+    font-size: 1.15rem;
+    color: var(--text-muted);
+    line-height: 1.8;
+    max-width: 680px;
+  }
+
+  .article-meta {
+    display: flex;
+    gap: 2rem;
+    margin-top: 2.5rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .meta-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .meta-value {
+    font-size: 0.9rem;
+    color: var(--text);
+    font-weight: 400;
+  }
+
+  /* Gold divider */
+  .gold-line {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    opacity: 0.4;
+  }
+
+  /* IMPACT CARDS */
+  .impact-section {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 5rem 4rem;
+  }
+
+  .impact-grid {
+    max-width: 900px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+
+  .impact-card {
+    background: var(--surface);
+    padding: 2.5rem 2rem;
+    text-align: center;
+    transition: background 0.3s;
+  }
+
+  .impact-card:hover { background: var(--surface2); }
+
+  .impact-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.8rem;
+    color: var(--gold);
+    line-height: 1;
+    margin-bottom: 0.5rem;
+  }
+
+  .impact-label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1.5;
+  }
+
+  .impact-detail {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.75rem;
+    line-height: 1.5;
+  }
+
+  /* ARTICLE BODY */
+  .article-body {
+    max-width: 740px;
+    margin: 0 auto;
+    padding: 5rem 4rem;
+  }
+
+  .article-body h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem;
+    font-weight: 500;
+    color: var(--white);
+    line-height: 1.25;
+    margin: 4rem 0 1.5rem;
+  }
+
+  .article-body h2:first-child { margin-top: 0; }
+
+  .article-body h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--white);
+    margin: 2.5rem 0 1rem;
+  }
+
+  .article-body p {
+    font-size: 1.05rem;
+    color: var(--text-muted);
+    line-height: 1.9;
+    margin-bottom: 1.5rem;
+  }
+
+  .article-body p strong {
+    color: var(--text);
+    font-weight: 400;
+  }
+
+  /* METHODOLOGY FLOW */
+  .method-flow {
+    margin: 3rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .method-step {
+    display: grid;
+    grid-template-columns: 3.5rem 1fr;
+    gap: 1.5rem;
+    align-items: start;
+    position: relative;
+  }
+
+  .method-step + .method-step { margin-top: 0; }
+
+  .step-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+
+  .step-number {
+    width: 2.8rem;
+    height: 2.8rem;
+    border: 1px solid var(--gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    background: var(--bg);
+    position: relative;
+    z-index: 2;
+    flex-shrink: 0;
+  }
+
+  .step-line {
+    width: 1px;
+    height: 100%;
+    min-height: 2rem;
+    background: linear-gradient(180deg, var(--gold), rgba(181,129,58,0.15));
+    flex-grow: 1;
+  }
+
+  .step-content {
+    padding-bottom: 2.5rem;
+  }
+
+  .method-step:last-child .step-content { padding-bottom: 0; }
+  .method-step:last-child .step-line { display: none; }
+
+  .step-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+    padding-top: 0.5rem;
+  }
+
+  .step-desc {
+    font-size: 0.92rem;
+    color: var(--text-muted);
+    line-height: 1.8;
+  }
+
+  .step-tech {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+  }
+
+  .tech-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* COMPARISON TABLE */
+  .comparison-section {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 5rem 4rem;
+  }
+
+  .comparison-inner {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .section-label::before {
+    content: '';
+    display: block;
+    width: 2rem;
+    height: 1px;
+    background: var(--gold);
+  }
+
+  .comparison-inner h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.8rem, 3vw, 2.4rem);
+    font-weight: 500;
+    color: var(--white);
+    line-height: 1.2;
+    margin-bottom: 2.5rem;
+  }
+
+  .comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid var(--border);
+  }
+
+  .comparison-table thead th {
+    background: var(--surface2);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 1.25rem 1.5rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+
+  .comparison-table thead th:not(:first-child) {
+    text-align: center;
+  }
+
+  .comparison-table tbody td {
+    padding: 1.25rem 1.5rem;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .comparison-table tbody td:not(:first-child) {
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.9rem;
+  }
+
+  .comparison-table tbody tr:hover td { background: var(--surface2); }
+
+  .metric-label {
+    font-weight: 400;
+    color: var(--text);
+  }
+
+  .highlight-cell {
+    color: var(--gold) !important;
+    font-weight: 500;
+  }
+
+  .gain-cell {
+    background: var(--gold-dim) !important;
+    color: var(--gold) !important;
+    font-weight: 500;
+  }
+
+  /* BAR COMPARISON VISUAL */
+  .bar-comparison {
+    margin: 3rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .bar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .bar-group-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .bar-row {
+    display: grid;
+    grid-template-columns: 100px 1fr 80px;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .bar-label {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  .bar-track {
+    height: 2rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    transition: width 1.5s ease;
+  }
+
+  .bar-fill.full { background: var(--border); }
+  .bar-fill.pca { background: var(--gold); }
+
+  .bar-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text);
+  }
+
+  /* CALLOUT BOX */
+  .callout {
+    border-left: 3px solid var(--gold);
+    background: var(--gold-dim);
+    padding: 1.5rem 2rem;
+    margin: 2rem 0;
+  }
+
+  .callout p {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin-bottom: 0;
+    line-height: 1.8;
+  }
+
+  .callout p strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  /* APPLICABILITY GRID */
+  .applicability-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    margin: 2rem 0;
+  }
+
+  .applicability-card {
+    background: var(--bg);
+    padding: 2rem;
+    transition: background 0.3s;
+  }
+
+  .applicability-card:hover { background: var(--surface); }
+
+  .applicability-card h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--white);
+    margin-bottom: 0.5rem;
+  }
+
+  .applicability-card p {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    line-height: 1.7;
+    margin-bottom: 0;
+  }
+
+  /* FOOTER */
+  .article-footer {
+    border-top: 1px solid var(--border);
+    padding: 3rem 4rem;
+    background: var(--surface);
+    text-align: center;
+  }
+
+  .article-footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+    font-size: 0.82rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gold);
+    text-decoration: none;
+    transition: gap 0.2s;
+  }
+
+  .back-link:hover { gap: 0.75rem; }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    nav { padding: 1.25rem 2rem; }
+    .article-hero { padding: 8rem 2rem 3rem; }
+    .article-body { padding: 3rem 2rem; }
+    section, .impact-section, .comparison-section { padding: 3rem 2rem; }
+    .impact-grid { grid-template-columns: 1fr; }
+    .applicability-grid { grid-template-columns: 1fr; }
+    .bar-row { grid-template-columns: 80px 1fr 60px; }
+    .article-meta { gap: 1.5rem; }
+    .article-footer { padding: 2rem; }
+  }
+
+  @media (max-width: 600px) {
+    .comparison-table { font-size: 0.8rem; }
+    .comparison-table thead th,
+    .comparison-table tbody td { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="index_2.html" class="nav-logo">karanam.ai</a>
+  <a href="index_2.html" class="nav-back">← Back to Home</a>
+</nav>
+
+<!-- ARTICLE HERO -->
+<div class="article-hero">
+  <div class="article-tag">Research · Deep Learning</div>
+  <h1>What If Your CNN Only Needed 0.2% of Its Parameters?</h1>
+  <p class="article-subtitle">
+    Applying PCA dimensionality reduction to compress feature spaces before classification — a simple technique with outsized impact on training cost. A proof-of-concept that cuts 8.4 million parameters to 18,000 with nearly identical accuracy.
+  </p>
+  <div class="article-meta">
+    <div class="meta-item">
+      <span class="meta-label">Author</span>
+      <span class="meta-value">Manohar Karanam</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Domain</span>
+      <span class="meta-value">Computer Vision · ML Efficiency</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Stack</span>
+      <span class="meta-value">Python · TensorFlow/Keras · VGG16 · Scikit-learn</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Type</span>
+      <span class="meta-value">Independent Research POC</span>
+    </div>
+  </div>
+</div>
+
+<div class="gold-line"></div>
+
+<!-- HEADLINE IMPACT NUMBERS -->
+<div class="impact-section">
+  <div class="impact-grid reveal">
+    <div class="impact-card">
+      <div class="impact-number">460×</div>
+      <div class="impact-label">Parameter Reduction</div>
+      <div class="impact-detail">8.4M → 18K trainable parameters</div>
+    </div>
+    <div class="impact-card">
+      <div class="impact-number">14×</div>
+      <div class="impact-label">Faster Training</div>
+      <div class="impact-detail">16.05s → 1.12s per epoch cycle</div>
+    </div>
+    <div class="impact-card">
+      <div class="impact-number">~1%</div>
+      <div class="impact-label">Accuracy Trade-off</div>
+      <div class="impact-detail">95.8% → 94.4% on test set</div>
+    </div>
+  </div>
+</div>
+
+<!-- ARTICLE BODY -->
+<div class="article-body">
+
+  <h2>The Problem</h2>
+  <p>
+    Modern convolutional neural networks are powerful but expensive. A typical image classification pipeline built on architectures like VGG16 or ResNet can involve <strong>millions of trainable parameters</strong> in the fully-connected classifier layers alone. This translates directly into compute cost, training time, energy consumption, and infrastructure requirements — costs that multiply quickly when you're retraining models across dozens of product lines, markets, or operational contexts in an enterprise setting.
+  </p>
+  <p>
+    The question this research explores is straightforward: <strong>can we drastically reduce the number of parameters a CNN needs to train, without meaningfully sacrificing accuracy?</strong>
+  </p>
+
+  <h2>The Approach</h2>
+  <p>
+    The core idea is to insert a <strong>PCA (Principal Component Analysis) dimensionality reduction step</strong> between the convolutional feature extractor and the classifier head. Rather than feeding the full feature vector from the CNN's convolutional layers into a dense classifier, we first compress it using PCA — retaining only the principal components that capture the most variance in the data.
+  </p>
+
+  <div class="method-flow reveal">
+    <div class="method-step">
+      <div class="step-marker">
+        <div class="step-number">01</div>
+        <div class="step-line"></div>
+      </div>
+      <div class="step-content">
+        <div class="step-title">Feature Extraction via Transfer Learning</div>
+        <div class="step-desc">A pre-trained VGG16 model (ImageNet weights) is used as a frozen feature extractor. Images are passed through the convolutional layers to produce a rich 32,768-dimensional feature vector per image.</div>
+        <div class="step-tech">
+          <span class="tech-tag">VGG16</span>
+          <span class="tech-tag">ImageNet Weights</span>
+          <span class="tech-tag">Transfer Learning</span>
+        </div>
+      </div>
+    </div>
+    <div class="method-step">
+      <div class="step-marker">
+        <div class="step-number">02</div>
+        <div class="step-line"></div>
+      </div>
+      <div class="step-content">
+        <div class="step-title">PCA Dimensionality Reduction</div>
+        <div class="step-desc">PCA is applied to the extracted features, identifying the principal components that capture the most variance. Analysis showed that 65 components retain ~70% of the original variance — a dramatic compression from 32,768 dimensions.</div>
+        <div class="step-tech">
+          <span class="tech-tag">Scikit-learn PCA</span>
+          <span class="tech-tag">SVD</span>
+          <span class="tech-tag">65 Components</span>
+        </div>
+      </div>
+    </div>
+    <div class="method-step">
+      <div class="step-marker">
+        <div class="step-number">03</div>
+        <div class="step-line"></div>
+      </div>
+      <div class="step-content">
+        <div class="step-title">Lightweight Classifier Training</div>
+        <div class="step-desc">A simple dense classifier (256-unit hidden layer + 4-class softmax) is trained on the PCA-reduced features. Because the input is 65 dimensions instead of 32,768, the classifier has only 17,924 trainable parameters.</div>
+        <div class="step-tech">
+          <span class="tech-tag">Dense Neural Network</span>
+          <span class="tech-tag">Softmax Classifier</span>
+          <span class="tech-tag">Keras</span>
+        </div>
+      </div>
+    </div>
+    <div class="method-step">
+      <div class="step-marker">
+        <div class="step-number">04</div>
+        <div class="step-line"></div>
+      </div>
+      <div class="step-content">
+        <div class="step-title">Comparative Evaluation</div>
+        <div class="step-desc">Both models — full-feature and PCA-reduced — are evaluated on an identical held-out test set of ~80 images across 4 classes, comparing accuracy, training time, and parameter count.</div>
+        <div class="step-tech">
+          <span class="tech-tag">Confusion Matrix</span>
+          <span class="tech-tag">Accuracy Metrics</span>
+          <span class="tech-tag">A/B Comparison</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Experimental Setup</h2>
+  <p>
+    To keep the experiment clean and reproducible, a multi-class image classification task was designed using four visually distinct categories: <strong>Banyan trees, Tigers, Lotus flowers, and Peacocks</strong>. Approximately 200 training images and 80 test images were sourced from Unsplash (public domain). The choice of classes was deliberate — distinct enough to validate the approach, while the underlying PCA+CNN methodology is entirely class-agnostic and applicable to any image classification problem.
+  </p>
+  <p>
+    Two models were trained head-to-head: a <strong>baseline model</strong> using the full 32,768-feature vector from VGG16, and a <strong>PCA-optimised model</strong> using only 65 principal components extracted from the same features. Both used identical classifier architectures (one hidden layer, same optimiser, same number of epochs).
+  </p>
+</div>
+
+<!-- COMPARISON TABLE -->
+<div class="comparison-section">
+  <div class="comparison-inner reveal">
+    <div class="section-label">Results</div>
+    <h2>Head-to-Head Comparison</h2>
+
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Baseline (Full Features)</th>
+          <th>PCA-Optimised</th>
+          <th>Gain</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="metric-label">Input dimensions</td>
+          <td>32,768</td>
+          <td class="highlight-cell">65</td>
+          <td class="gain-cell">504× reduction</td>
+        </tr>
+        <tr>
+          <td class="metric-label">Trainable parameters</td>
+          <td>8,389,892</td>
+          <td class="highlight-cell">17,924</td>
+          <td class="gain-cell">468× reduction</td>
+        </tr>
+        <tr>
+          <td class="metric-label">Training time (20 epochs)</td>
+          <td>16.05s</td>
+          <td class="highlight-cell">1.12s</td>
+          <td class="gain-cell">14.3× faster</td>
+        </tr>
+        <tr>
+          <td class="metric-label">Test accuracy</td>
+          <td>95.77%</td>
+          <td>94.37%</td>
+          <td>−1.4%</td>
+        </tr>
+        <tr>
+          <td class="metric-label">Training convergence</td>
+          <td>Epoch 5 (100%)</td>
+          <td>Epoch 7 (100%)</td>
+          <td>Comparable</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- VISUAL BAR COMPARISON -->
+    <div class="bar-comparison">
+      <div class="bar-group">
+        <div class="bar-group-label">Trainable Parameters</div>
+        <div class="bar-row">
+          <div class="bar-label">Baseline</div>
+          <div class="bar-track"><div class="bar-fill full" style="width:100%"></div></div>
+          <div class="bar-value">8.39M</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">PCA</div>
+          <div class="bar-track"><div class="bar-fill pca" style="width:0.21%"></div></div>
+          <div class="bar-value">17.9K</div>
+        </div>
+      </div>
+      <div class="bar-group">
+        <div class="bar-group-label">Training Time</div>
+        <div class="bar-row">
+          <div class="bar-label">Baseline</div>
+          <div class="bar-track"><div class="bar-fill full" style="width:100%"></div></div>
+          <div class="bar-value">16.05s</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">PCA</div>
+          <div class="bar-track"><div class="bar-fill pca" style="width:7%"></div></div>
+          <div class="bar-value">1.12s</div>
+        </div>
+      </div>
+      <div class="bar-group">
+        <div class="bar-group-label">Test Accuracy</div>
+        <div class="bar-row">
+          <div class="bar-label">Baseline</div>
+          <div class="bar-track"><div class="bar-fill full" style="width:95.77%"></div></div>
+          <div class="bar-value">95.77%</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">PCA</div>
+          <div class="bar-track"><div class="bar-fill pca" style="width:94.37%"></div></div>
+          <div class="bar-value">94.37%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTINUED BODY -->
+<div class="article-body">
+
+  <h2>Why This Matters</h2>
+  <p>
+    The gains demonstrated here — <strong>460× parameter reduction and 14× training speed-up at a cost of just ~1% accuracy</strong> — become increasingly significant as you scale up. In a production enterprise environment where you might be training hundreds of models across product lines, geographies, or time windows, these efficiencies compound into meaningful reductions in compute cost, energy usage, and time-to-deployment.
+  </p>
+
+  <div class="callout">
+    <p>
+      <strong>The key insight:</strong> The convolutional layers of a pre-trained CNN produce highly redundant feature representations. PCA identifies and eliminates this redundancy before it reaches the classifier, meaning you train on signal rather than noise. The approach is model-agnostic — it works with any CNN architecture that uses transfer learning.
+    </p>
+  </div>
+
+  <h2>Industrial Applicability</h2>
+  <p>
+    While this POC uses a simple four-class classification task for clarity, the same PCA+CNN pipeline applies directly to real-world computer vision problems across industries. The methodology is architecture-agnostic — it slots into any transfer-learning workflow regardless of the base model or domain.
+  </p>
+
+  <div class="applicability-grid reveal">
+    <div class="applicability-card">
+      <h4>Manufacturing</h4>
+      <p>Visual defect detection on production lines — reducing inference latency and training cost for models that need frequent retraining as product specs change.</p>
+    </div>
+    <div class="applicability-card">
+      <h4>Healthcare & Pharma</h4>
+      <p>Medical image classification (pathology slides, radiology) where compute costs scale with dataset size and regulatory retraining requirements.</p>
+    </div>
+    <div class="applicability-card">
+      <h4>Retail & CPG</h4>
+      <p>Shelf compliance and product recognition across thousands of SKUs — where model retraining cycles need to be fast and resource-efficient.</p>
+    </div>
+    <div class="applicability-card">
+      <h4>Agriculture & Remote Sensing</h4>
+      <p>Satellite and drone imagery classification for crop monitoring, land use analysis, and environmental surveillance at scale.</p>
+    </div>
+  </div>
+
+  <h2>Limitations & Future Directions</h2>
+  <p>
+    This POC was deliberately constrained to isolate the PCA effect: a small dataset, a single architecture (VGG16), and a straightforward classification task. Several extensions would strengthen the case for production deployment.
+  </p>
+  <p>
+    <strong>Scale testing</strong> with larger datasets (ImageNet-scale) and deeper architectures (ResNet, EfficientNet) would validate whether the parameter-to-accuracy trade-off holds at industrial scale. <strong>Incremental PCA</strong> could handle datasets that don't fit in memory. And <strong>combining PCA with other efficiency techniques</strong> — quantisation, pruning, knowledge distillation — could yield even greater compound gains.
+  </p>
+  <p>
+    The variance retention threshold (65 components capturing ~70% variance) was chosen conservatively. Tuning this threshold per use case — perhaps retaining 85–90% variance with more components — offers a dial to trade off between speed and accuracy based on the specific application's tolerance.
+  </p>
+
+  <h2>Technical Stack</h2>
+  <p>
+    The experiment was implemented in Python using TensorFlow/Keras for the CNN and classifier layers, Scikit-learn for PCA decomposition, and OpenCV for image preprocessing. VGG16 with pre-trained ImageNet weights served as the frozen feature extractor. The full pipeline — from raw images to comparative evaluation — runs in a single notebook and is fully reproducible.
+  </p>
+
+</div>
+
+<!-- FOOTER -->
+<div class="article-footer">
+  <p>© 2025 Manohar Karanam</p>
+  <a href="index_2.html" class="back-link">← Back to karanam.ai</a>
+</div>
+
+<script>
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('visible'), i * 80);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.08 });
+  reveals.forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
